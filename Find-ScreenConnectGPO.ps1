@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Finds GPOs that deploy ConnectWise ScreenConnect/Control and scripts that may install CW Automate/ScreenConnect.
+    Finds GPOs that deploy ConnectWise ScreenConnect/Control and returns the share where the MSI is stored.
 
 .DESCRIPTION
     Designed to run from ConnectWise ScreenConnect Commands window. Queries the Domain Controller
@@ -72,6 +72,38 @@ function Get-ShareFromPath {
         return "\\$($parts[0])\$($parts[1])"
     }
     return $null
+}
+
+$script:LocalPathCache = @{}
+function Get-LocalPathFromUnc {
+    param([string]$UncPath)
+    if ([string]::IsNullOrWhiteSpace($UncPath)) { return 'N/A' }
+    $UncPath = Normalize-MsiPath -Path $UncPath
+    $parts = $UncPath.TrimStart('\') -split '\\+'
+    if ($parts.Count -lt 2) { return 'N/A' }
+    $server = $parts[0]
+    $shareName = $parts[1]
+    $subPath = $parts[2..($parts.Count - 1)] -join '\'
+    $cacheKey = "\\$server\$shareName"
+    if (-not $script:LocalPathCache.ContainsKey($cacheKey)) {
+        $localRoot = 'N/A'
+        try {
+            $share = Get-SmbShare -CimSession (New-CimSession -ComputerName $server -ErrorAction Stop) -ErrorAction Stop | Where-Object { $_.Name -eq $shareName }
+            if ($share) { $localRoot = $share.Path.TrimEnd('\') }
+        }
+        catch {
+            try {
+                $share = Get-WmiObject Win32_Share -ComputerName $server -Filter "Name='$shareName'" -ErrorAction Stop
+                if ($share) { $localRoot = $share.Path.TrimEnd('\') }
+            }
+            catch { }
+        }
+        $script:LocalPathCache[$cacheKey] = $localRoot
+    }
+    $localRoot = $script:LocalPathCache[$cacheKey]
+    if ($localRoot -eq 'N/A') { return 'N/A' }
+    if ([string]::IsNullOrWhiteSpace($subPath)) { return $localRoot }
+    return Join-Path $localRoot $subPath
 }
 
 function Get-MsiFileDates {
@@ -185,11 +217,13 @@ try {
                             $path = Normalize-MsiPath -Path $path
                             $share = Get-ShareFromPath -UncPath $path
                             $dates = Get-MsiFileDates -UncPath $path
+                            $localPath = Get-LocalPathFromUnc -UncPath $path
                             $results += [PSCustomObject]@{
                                 GPOName     = $gpo.DisplayName
                                 GPOGuid     = $gpo.Id.Guid
                                 AppName     = $name
                                 MSIPath     = $path
+                                LocalPath   = $localPath
                                 Share       = $share
                                 Created     = $dates.Created
                                 Modified    = $dates.Modified
@@ -219,11 +253,13 @@ try {
                         $path = Normalize-MsiPath -Path $path
                         $share = Get-ShareFromPath -UncPath $path
                         $dates = Get-MsiFileDates -UncPath $path
+                        $localPath = Get-LocalPathFromUnc -UncPath $path
                         $results += [PSCustomObject]@{
                             GPOName     = $gpo.DisplayName
                             GPOGuid     = $gpo.Id.Guid
                             AppName     = 'Unknown'
                             MSIPath     = $path
+                            LocalPath   = $localPath
                             Share       = $share
                             Created     = $dates.Created
                             Modified    = $dates.Modified
@@ -246,7 +282,7 @@ try {
         Write-Output "=== GPO SOFTWARE INSTALLATION (MSI) ==="
         Write-Output "Found $($results.Count) deployment(s):"
         Write-Output ""
-        $results | Select-Object GPOName, AppName, MSIPath, Share, Created, Modified | Format-List | Out-String -Width 200 | Write-Output
+        $results | Select-Object GPOName, AppName, MSIPath, LocalPath, Share, Created, Modified | Format-List | Out-String -Width 200 | Write-Output
         Write-Output "--- Summary: GPO and Share ---"
         $results | Select-Object GPOName, Share -Unique | ForEach-Object {
             Write-Output "  GPO: $($_.GPOName)  |  Share: $($_.Share)"
@@ -278,4 +314,3 @@ catch {
     Write-Error "Error: $_"
     exit 1
 }
-

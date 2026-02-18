@@ -41,7 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$s='$env:TEMP\Find-Scree
 **GPO Software Installation (MSI):**
 - **GPO Name** – Which GPO deploys ScreenConnect/Control  
 - **App Name** – Deployed application display name  
-- **MSI Path** – Full UNC path to the MSI  
+- **MSIPath** – Full UNC path to the MSI (e.g. `\\server\share\path\file.msi`)  
+- **LocalPath** – Physical path on the file server (e.g. `D:\Shares\path\file.msi`); N/A if server is unreachable or account lacks admin rights  
 - **Share** – `\\server\share` where the MSI is stored  
 - **Created / Modified** – MSI file dates (N/A if share inaccessible)
 
