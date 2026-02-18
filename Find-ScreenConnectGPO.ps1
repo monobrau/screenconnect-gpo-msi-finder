@@ -50,9 +50,21 @@ function Test-IsMatch {
     return $false
 }
 
+function Normalize-MsiPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    # GPO/AD sometimes stores paths with prefix like "0:" or "1:" (deployment type flag) - e.g. "0:\server\share\file.msi" -> "\\server\share\file.msi"
+    if ($Path -match '^\d+:(.+)$') {
+        $rest = $matches[1].TrimStart('\')
+        return "\\$rest"
+    }
+    return $Path
+}
+
 function Get-ShareFromPath {
     param([string]$UncPath)
     if ([string]::IsNullOrWhiteSpace($UncPath)) { return $null }
+    $UncPath = Normalize-MsiPath -Path $UncPath
     # UNC format: \\server\share\path\to\file.msi - extract \\server\share
     $parts = $UncPath.TrimStart('\') -split '\\+'
     if ($parts.Count -ge 2) {
@@ -64,6 +76,7 @@ function Get-ShareFromPath {
 function Get-MsiFileDates {
     param([string]$UncPath)
     if ([string]::IsNullOrWhiteSpace($UncPath)) { return @{ Created = 'N/A'; Modified = 'N/A' } }
+    $UncPath = Normalize-MsiPath -Path $UncPath
     try {
         $item = Get-Item -LiteralPath $UncPath -ErrorAction Stop
         return @{ Created = $item.CreationTime.ToString('yyyy-MM-dd HH:mm'); Modified = $item.LastWriteTime.ToString('yyyy-MM-dd HH:mm') }
@@ -117,6 +130,7 @@ try {
                     foreach ($path in $paths) {
                         if ([string]::IsNullOrWhiteSpace($path) -or -not ($path -match '\.(msi|mst)$')) { continue }
                         if (Test-IsMatch -GpoName $gpo.DisplayName -Name $name -Path $path) {
+                            $path = Normalize-MsiPath -Path $path
                             $share = Get-ShareFromPath -UncPath $path
                             $dates = Get-MsiFileDates -UncPath $path
                             $results += [PSCustomObject]@{
@@ -150,6 +164,7 @@ try {
                 foreach ($m in $uncPaths) {
                     $path = $m.Value
                     if (Test-IsMatch -GpoName $gpo.DisplayName -Name $path -Path $path) {
+                        $path = Normalize-MsiPath -Path $path
                         $share = Get-ShareFromPath -UncPath $path
                         $dates = Get-MsiFileDates -UncPath $path
                         $results += [PSCustomObject]@{
