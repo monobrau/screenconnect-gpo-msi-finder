@@ -22,20 +22,30 @@ This script queries the Domain Controller directly to answer those questions.
 
 ## Usage
 
-### From ScreenConnect Commands Window
+### Run from ScreenConnect Commands (Download & Execute)
 
-1. Open a remote session in ConnectWise ScreenConnect
-2. Open the **Commands** window
-3. Paste or type the path to the script, or paste the script contents
+Paste this into the ScreenConnect **Commands** window to download and run the script in one step:
 
-**Option A – Run the script file:**
 ```powershell
-& "C:\path\to\Find-ScreenConnectGPO.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 | iex"
 ```
 
-**Option B – Inline (paste into Commands window):**
+If the Commands window is already PowerShell, use the shorter form:
+
 ```powershell
-# Copy script content and run
+irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 | iex
+```
+
+With parameters (e.g., specify DC)—download to temp, then run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s='$env:TEMP\Find-ScreenConnectGPO.ps1'; irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 -OutFile $s; & $s -DomainController DC01.corp.contoso.com -Domain corp.contoso.com"
+```
+
+### Run from Local Script File
+
+```powershell
+& "C:\path\to\Find-ScreenConnectGPO.ps1"
 ```
 
 ### Parameters
