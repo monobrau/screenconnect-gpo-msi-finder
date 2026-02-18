@@ -36,14 +36,18 @@ param(
     [string]$Domain
 )
 
-# Keywords to match ConnectWise ScreenConnect/Control deployments
-$SearchPatterns = @('screenconnect', 'connectwise', 'connect wise', 'control\.msi', 'screen connect')
+# Keywords to match ConnectWise ScreenConnect/Control - in GPO name, app name, or MSI path
+$SearchPatterns = @('screenconnect', 'screen connect', 'connectwise', 'connect wise', 'control\.msi', '\bsc\b')
 
 function Test-IsMatch {
-    param([string]$Name, [string]$Path)
-    if ([string]::IsNullOrWhiteSpace($Name) -and [string]::IsNullOrWhiteSpace($Path)) { return $false }
-    $combined = "$Name $Path".ToLowerInvariant()
-    return ($SearchPatterns | Where-Object { $combined -match [regex]::Escape($_) }).Count -gt 0
+    param([string]$GpoName, [string]$Name, [string]$Path)
+    $combined = "$GpoName $Name $Path".ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($combined)) { return $false }
+    foreach ($pattern in $SearchPatterns) {
+        $regex = if ($pattern -match '\\[a-z]') { $pattern } else { [regex]::Escape($pattern) }
+        if ($combined -match $regex) { return $true }
+    }
+    return $false
 }
 
 function Get-ShareFromPath {
@@ -100,7 +104,7 @@ try {
 
                     foreach ($path in $paths) {
                         if ([string]::IsNullOrWhiteSpace($path) -or -not ($path -match '\.(msi|mst)$')) { continue }
-                        if (Test-IsMatch -Name $name -Path $path) {
+                        if (Test-IsMatch -GpoName $gpo.DisplayName -Name $name -Path $path) {
                             $share = Get-ShareFromPath -UncPath $path
                             $results += [PSCustomObject]@{
                                 GPOName     = $gpo.DisplayName
@@ -130,7 +134,7 @@ try {
                 $uncPaths = [regex]::Matches($report, '\\\\[^\s"''<>]+\.msi')
                 foreach ($m in $uncPaths) {
                     $path = $m.Value
-                    if (Test-IsMatch -Name $path -Path $path) {
+                    if (Test-IsMatch -GpoName $gpo.DisplayName -Name $path -Path $path) {
                         $share = Get-ShareFromPath -UncPath $path
                         $results += [PSCustomObject]@{
                             GPOName     = $gpo.DisplayName
