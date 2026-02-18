@@ -62,7 +62,7 @@ try {
     $required = @('GroupPolicy', 'ActiveDirectory')
     foreach ($mod in $required) {
         if (-not (Get-Module -ListAvailable -Name $mod)) {
-            Write-Error "Required module '$mod' not found. Install RSAT: Install-WindowsFeature RSAT-AD-PowerShell, RSAT-GP."
+            Write-Output "ERROR: Required module '$mod' not found. Install RSAT: Install-WindowsFeature RSAT-AD-PowerShell, RSAT-GP."
             exit 1
         }
         Import-Module $mod -ErrorAction Stop
@@ -78,9 +78,9 @@ try {
         $Domain = $dom.DNSRoot
     }
 
-    Write-Host "Querying Domain Controller: $DomainController" -ForegroundColor Cyan
-    Write-Host "Domain: $Domain" -ForegroundColor Cyan
-    Write-Host ""
+    Write-Output "Querying Domain Controller: $DomainController"
+    Write-Output "Domain: $Domain"
+    Write-Output ""
 
     $results = @()
     $dn = (Get-ADDomain -Server $DomainController).DistinguishedName
@@ -122,7 +122,7 @@ try {
 
     # Fallback: parse GPO reports for software installation (catches cases Class Store might miss)
     if ($results.Count -eq 0) {
-        Write-Host "No matches from Class Store. Checking GPO reports..." -ForegroundColor Yellow
+        Write-Output "No matches from Class Store. Checking GPO reports..."
         foreach ($gpo in $gpos) {
             try {
                 $report = Get-GPOReport -Guid $gpo.Id -ReportType Xml -Domain $Domain -Server $DomainController -ErrorAction Stop
@@ -148,20 +148,21 @@ try {
     }
 
     if ($results.Count -eq 0) {
-        Write-Host "No GPOs found that deploy ConnectWise ScreenConnect/Control." -ForegroundColor Yellow
+        Write-Output "No GPOs found that deploy ConnectWise ScreenConnect/Control."
         exit 0
     }
 
-    Write-Host "Found $($results.Count) deployment(s):" -ForegroundColor Green
-    Write-Host ""
-    $results | Format-Table -AutoSize GPOName, AppName, MSIPath, Share -Wrap
-    Write-Host ""
-    Write-Host "--- Summary: GPO and Share ---" -ForegroundColor Cyan
+    Write-Output "Found $($results.Count) deployment(s):"
+    Write-Output ""
+    $results | Format-Table -AutoSize GPOName, AppName, MSIPath, Share -Wrap | Out-String | Write-Output
+    Write-Output ""
+    Write-Output "--- Summary: GPO and Share ---"
     $results | Select-Object GPOName, Share -Unique | ForEach-Object {
-        Write-Host "  GPO: $($_.GPOName)  |  Share: $($_.Share)"
+        Write-Output "  GPO: $($_.GPOName)  |  Share: $($_.Share)"
     }
 }
 catch {
+    Write-Output "ERROR: $_"
     Write-Error "Error: $_"
     exit 1
 }
