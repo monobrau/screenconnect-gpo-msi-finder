@@ -63,13 +63,13 @@ function Get-ShareFromPath {
 
 function Get-MsiFileDates {
     param([string]$UncPath)
-    if ([string]::IsNullOrWhiteSpace($UncPath)) { return @{ Created = $null; Modified = $null } }
+    if ([string]::IsNullOrWhiteSpace($UncPath)) { return @{ Created = 'N/A'; Modified = 'N/A' } }
     try {
         $item = Get-Item -LiteralPath $UncPath -ErrorAction Stop
-        return @{ Created = $item.CreationTime; Modified = $item.LastWriteTime }
+        return @{ Created = $item.CreationTime.ToString('yyyy-MM-dd HH:mm'); Modified = $item.LastWriteTime.ToString('yyyy-MM-dd HH:mm') }
     }
     catch {
-        return @{ Created = $null; Modified = $null }
+        return @{ Created = 'N/A'; Modified = 'N/A' }
     }
 }
 
