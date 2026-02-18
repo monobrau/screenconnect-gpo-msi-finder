@@ -1,6 +1,6 @@
 # ScreenConnect GPO MSI Finder
 
-Find GPOs that deploy ConnectWise ScreenConnect/Control and the share where the MSI is stored. **Run remotely** from the ConnectWise ScreenConnect Commands window—no install, no files to copy. Paste a one-liner, download and run.
+Find GPOs that deploy ConnectWise ScreenConnect/Control and scripts that may install CW Automate RMM or ScreenConnect. **Run remotely** from the ConnectWise ScreenConnect Commands window—no install, no files to copy. Paste a one-liner, download and run.
 
 ---
 
@@ -38,11 +38,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$s='$env:TEMP\Find-Scree
 
 ## What You Get
 
+**GPO Software Installation (MSI):**
 - **GPO Name** – Which GPO deploys ScreenConnect/Control  
 - **App Name** – Deployed application display name  
 - **MSI Path** – Full UNC path to the MSI  
 - **Share** – `\\server\share` where the MSI is stored  
 - **Created / Modified** – MSI file dates (N/A if share inaccessible)
+
+**GPO Scripts (Logon, Logoff, Startup, Shutdown):**
+- Scripts in any GPO that reference CW Automate RMM, ScreenConnect, or related install commands—often used to "hide" deployments outside Software Installation.
 
 ---
 
@@ -71,6 +75,5 @@ Parameters: `-DomainController`, `-Domain`
 
 ## How It Works
 
-1. Queries the AD Class Store for each GPO’s Software Installation packages.
-2. Matches on GPO name, app name, or MSI path (screenconnect, connectwise, SC, control, etc.).
-3. Extracts the share from each UNC path and fetches MSI file dates when accessible.
+1. **Software Installation** – Queries the AD Class Store for each GPO’s packages; matches on GPO name, app name, or MSI path; extracts share and MSI file dates.
+2. **Scripts** – Scans GPO Logon, Logoff, Startup, and Shutdown scripts (.bat, .cmd, .ps1, .vbs) for references to screenconnect, connectwise, automate, labtech, msiexec, etc.

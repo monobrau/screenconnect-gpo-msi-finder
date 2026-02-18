@@ -1,12 +1,11 @@
 <#
 .SYNOPSIS
-    Finds GPOs that deploy ConnectWise ScreenConnect/Control and returns the share where the MSI is stored.
+    Finds GPOs that deploy ConnectWise ScreenConnect/Control and scripts that may install CW Automate/ScreenConnect.
 
 .DESCRIPTION
     Designed to run from ConnectWise ScreenConnect Commands window. Queries the Domain Controller
-    directly to find any Group Policy that deploys ConnectWise ScreenConnect or Control via
-    Software Installation (Assigned/Published). Returns the GPO name and the UNC share path
-    where the MSI file is stored.
+    directly to find: (1) GPO Software Installation deployments and the MSI share path,
+    (2) Logon/Logoff/Startup/Shutdown scripts that reference CW Automate RMM or ScreenConnect.
 
 .PARAMETER DomainController
     Optional. Specifies the Domain Controller to query. If omitted, discovers the DC automatically
@@ -38,6 +37,8 @@ param(
 
 # Keywords to match ConnectWise ScreenConnect/Control - in GPO name, app name, or MSI path
 $SearchPatterns = @('screenconnect', 'screen connect', 'connectwise', 'connect wise', 'control\.msi', '\bsc\b')
+# Keywords for script content - CW Automate RMM, ScreenConnect, installations
+$ScriptSearchPatterns = @('screenconnect', 'screen connect', 'connectwise', 'connect wise', 'automate', 'labtech', 'ltagent', 'rrc\.remotesupport', 'remote support', 'msiexec', '\.msi', '\bsc\b')
 
 function Test-IsMatch {
     param([string]$GpoName, [string]$Name, [string]$Path)
@@ -84,6 +85,57 @@ function Get-MsiFileDates {
     catch {
         return @{ Created = 'N/A'; Modified = 'N/A' }
     }
+}
+
+function Test-ScriptContentMatch {
+    param([string]$Content)
+    if ([string]::IsNullOrWhiteSpace($Content)) { return $false }
+    $lower = $Content.ToLowerInvariant()
+    foreach ($pattern in $ScriptSearchPatterns) {
+        $regex = if ($pattern -match '\\[a-z]') { $pattern } else { [regex]::Escape($pattern) }
+        if ($lower -match $regex) { return $true }
+    }
+    return $false
+}
+
+function Get-GpoScriptFindings {
+    param([string]$DC, [string]$Domain, [array]$Gpos)
+    $sysvolRoot = "\\$DC\SYSVOL\$Domain\Policies"
+    $scriptTypes = @(
+        @{ Name = 'Logon';   Path = 'User\Scripts\Logon' }
+        @{ Name = 'Logoff';  Path = 'User\Scripts\Logoff' }
+        @{ Name = 'Startup'; Path = 'Machine\Scripts\Startup' }
+        @{ Name = 'Shutdown'; Path = 'Machine\Scripts\Shutdown' }
+    )
+    $scriptExts = @('.bat', '.cmd', '.ps1', '.vbs')
+    $findings = @()
+    foreach ($gpo in $Gpos) {
+        $gpoPath = Join-Path $sysvolRoot $gpo.Id.Guid
+        if (-not (Test-Path $gpoPath)) { continue }
+        foreach ($st in $scriptTypes) {
+            $scriptDir = Join-Path $gpoPath $st.Path
+            if (-not (Test-Path $scriptDir)) { continue }
+            try {
+                $files = Get-ChildItem -Path $scriptDir -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in $scriptExts }
+                foreach ($f in $files) {
+                    try {
+                        $content = Get-Content -LiteralPath $f.FullName -Raw -ErrorAction Stop
+                        if (Test-ScriptContentMatch -Content $content) {
+                            $findings += [PSCustomObject]@{
+                                GPOName   = $gpo.DisplayName
+                                ScriptType = $st.Name
+                                ScriptPath = $f.FullName
+                                ScriptName = $f.Name
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+    }
+    return $findings
 }
 
 try {
@@ -184,18 +236,41 @@ try {
         }
     }
 
-    if ($results.Count -eq 0) {
-        Write-Output "No GPOs found that deploy ConnectWise ScreenConnect/Control."
-        exit 0
+    # Search GPO scripts (Logon, Logoff, Startup, Shutdown) for CW Automate / ScreenConnect
+    Write-Output "Searching GPO scripts (Logon, Logoff, Startup, Shutdown)..."
+    $scriptFindings = Get-GpoScriptFindings -DC $DomainController -Domain $Domain -Gpos $gpos
+
+    # Output MSI deployment results
+    if ($results.Count -gt 0) {
+        Write-Output ""
+        Write-Output "=== GPO SOFTWARE INSTALLATION (MSI) ==="
+        Write-Output "Found $($results.Count) deployment(s):"
+        Write-Output ""
+        $results | Select-Object GPOName, AppName, MSIPath, Share, Created, Modified | Format-List | Out-String -Width 200 | Write-Output
+        Write-Output "--- Summary: GPO and Share ---"
+        $results | Select-Object GPOName, Share -Unique | ForEach-Object {
+            Write-Output "  GPO: $($_.GPOName)  |  Share: $($_.Share)"
+        }
+    }
+    else {
+        Write-Output "No GPOs found that deploy ConnectWise ScreenConnect/Control via Software Installation."
     }
 
-    Write-Output "Found $($results.Count) deployment(s):"
-    Write-Output ""
-    $results | Select-Object GPOName, AppName, MSIPath, Share, Created, Modified | Format-List | Out-String -Width 200 | Write-Output
-    Write-Output ""
-    Write-Output "--- Summary: GPO and Share ---"
-    $results | Select-Object GPOName, Share -Unique | ForEach-Object {
-        Write-Output "  GPO: $($_.GPOName)  |  Share: $($_.Share)"
+    # Output script findings
+    if ($scriptFindings.Count -gt 0) {
+        Write-Output ""
+        Write-Output "=== GPO SCRIPTS (possible CW Automate/ScreenConnect install) ==="
+        Write-Output "Found $($scriptFindings.Count) script(s) that may reference CW Automate RMM or ScreenConnect:"
+        Write-Output ""
+        $scriptFindings | Select-Object GPOName, ScriptType, ScriptName, ScriptPath | Format-List | Out-String -Width 200 | Write-Output
+    }
+    else {
+        Write-Output "No logon/logoff/startup/shutdown scripts found referencing CW Automate or ScreenConnect."
+    }
+
+    if ($results.Count -eq 0 -and $scriptFindings.Count -eq 0) {
+        Write-Output ""
+        Write-Output "No matches found."
     }
 }
 catch {
@@ -203,3 +278,4 @@ catch {
     Write-Error "Error: $_"
     exit 1
 }
+
