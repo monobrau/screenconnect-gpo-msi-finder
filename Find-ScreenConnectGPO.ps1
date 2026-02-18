@@ -61,6 +61,18 @@ function Get-ShareFromPath {
     return $null
 }
 
+function Get-MsiFileDates {
+    param([string]$UncPath)
+    if ([string]::IsNullOrWhiteSpace($UncPath)) { return @{ Created = $null; Modified = $null } }
+    try {
+        $item = Get-Item -LiteralPath $UncPath -ErrorAction Stop
+        return @{ Created = $item.CreationTime; Modified = $item.LastWriteTime }
+    }
+    catch {
+        return @{ Created = $null; Modified = $null }
+    }
+}
+
 try {
     # Ensure required modules are loaded
     $required = @('GroupPolicy', 'ActiveDirectory')
@@ -106,12 +118,15 @@ try {
                         if ([string]::IsNullOrWhiteSpace($path) -or -not ($path -match '\.(msi|mst)$')) { continue }
                         if (Test-IsMatch -GpoName $gpo.DisplayName -Name $name -Path $path) {
                             $share = Get-ShareFromPath -UncPath $path
+                            $dates = Get-MsiFileDates -UncPath $path
                             $results += [PSCustomObject]@{
                                 GPOName     = $gpo.DisplayName
                                 GPOGuid     = $gpo.Id.Guid
                                 AppName     = $name
                                 MSIPath     = $path
                                 Share       = $share
+                                Created     = $dates.Created
+                                Modified    = $dates.Modified
                                 DomainController = $DomainController
                             }
                         }
@@ -136,12 +151,15 @@ try {
                     $path = $m.Value
                     if (Test-IsMatch -GpoName $gpo.DisplayName -Name $path -Path $path) {
                         $share = Get-ShareFromPath -UncPath $path
+                        $dates = Get-MsiFileDates -UncPath $path
                         $results += [PSCustomObject]@{
                             GPOName     = $gpo.DisplayName
                             GPOGuid     = $gpo.Id.Guid
                             AppName     = 'Unknown'
                             MSIPath     = $path
                             Share       = $share
+                            Created     = $dates.Created
+                            Modified    = $dates.Modified
                             DomainController = $DomainController
                         }
                     }
@@ -158,7 +176,7 @@ try {
 
     Write-Output "Found $($results.Count) deployment(s):"
     Write-Output ""
-    $results | Format-Table -AutoSize GPOName, AppName, MSIPath, Share -Wrap | Out-String | Write-Output
+    $results | Format-Table -AutoSize GPOName, AppName, MSIPath, Share, Created, Modified -Wrap | Out-String | Write-Output
     Write-Output ""
     Write-Output "--- Summary: GPO and Share ---"
     $results | Select-Object GPOName, Share -Unique | ForEach-Object {

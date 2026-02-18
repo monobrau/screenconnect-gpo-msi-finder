@@ -72,15 +72,17 @@ The script outputs:
 - **App Name** – Display name of the deployed application
 - **MSI Path** – Full UNC path to the MSI file
 - **Share** – The `\\server\share` portion where the MSI is stored
+- **Created** – MSI file creation date (N/A if share inaccessible)
+- **Modified** – MSI file last-modified date (N/A if share inaccessible)
 
 Example:
 ```
 Found 2 deployment(s):
 
-GPOName     AppName                    MSIPath                                    Share
--------     -------                    ------                                    -----
-Deploy-CW   ConnectWise Control        \\fileserver\software\ScreenConnect\...   \\fileserver\software
-CW-Agent    ScreenConnect Agent        \\nas\deploy\cw\ControlAgent.msi           \\nas\deploy
+GPOName     AppName              MSIPath                             Share                  Created              Modified
+-------     -------              ------                             -----                  -------              --------
+Deploy-CW   ConnectWise Control  \\fileserver\software\ScreenC...   \\fileserver\software  2/15/2025 10:00 AM   2/18/2025 3:45 PM
+CW-Agent    ScreenConnect Agent  \\nas\deploy\cw\ControlAgent.msi    \\nas\deploy           1/10/2025 9:30 AM    1/10/2025 9:30 AM
 
 --- Summary: GPO and Share ---
   GPO: Deploy-CW  |  Share: \\fileserver\software
