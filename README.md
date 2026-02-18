@@ -30,6 +30,12 @@ Paste this into the ScreenConnect **Commands** window to download and run the sc
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 | iex"
 ```
 
+**If you get "Could not create SSL/TLS secure channel"** (common on older DCs), use this instead to enable TLS 1.2 first:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 | iex"
+```
+
 If the Commands window is already PowerShell, use the shorter form:
 
 ```powershell
@@ -39,7 +45,7 @@ irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main
 With parameters (e.g., specify DC)—download to temp, then run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s='$env:TEMP\Find-ScreenConnectGPO.ps1'; irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 -OutFile $s; & $s -DomainController DC01.corp.contoso.com -Domain corp.contoso.com"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s='$env:TEMP\Find-ScreenConnectGPO.ps1'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; irm https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1 -OutFile $s; & $s -DomainController DC01.corp.contoso.com -Domain corp.contoso.com"
 ```
 
 ### Run from Local Script File
