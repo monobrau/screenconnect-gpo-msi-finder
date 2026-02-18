@@ -191,7 +191,7 @@ try {
 
     Write-Output "Found $($results.Count) deployment(s):"
     Write-Output ""
-    $results | Format-Table -AutoSize GPOName, AppName, MSIPath, Share, Created, Modified -Wrap | Out-String | Write-Output
+    $results | Select-Object GPOName, AppName, MSIPath, Share, Created, Modified | Format-List | Out-String -Width 200 | Write-Output
     Write-Output ""
     Write-Output "--- Summary: GPO and Share ---"
     $results | Select-Object GPOName, Share -Unique | ForEach-Object {
