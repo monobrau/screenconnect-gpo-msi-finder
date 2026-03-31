@@ -10,12 +10,14 @@ Connect to a session in ScreenConnect, open the **Commands** window, and paste o
 
 ### Standard (recommended — download then run)
 
-`irm … | iex` runs **whatever** the URL returns. If a proxy or SSL inspector returns an **HTML** page instead of the raw `.ps1`, `iex` parses that text and you get errors about `&`, `redirect`, base64, etc. Prefer saving the file first:
+`irm … | iex` runs **whatever** the URL returns. If a proxy or SSL inspector returns an **HTML** page instead of the raw `.ps1`, `iex` parses that text and you get errors about `&`, `redirect`, base64, etc. Prefer saving the file first.
+
+The download guard looks for **HTML document** markers (`<!DOCTYPE`, `<html`, `<head`) on the first non-blank line—not merely any `<`, because this script legitimately starts with `<#` (a PowerShell comment block).
 
 **From cmd.exe or “Run as administrator”:**
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1' -OutFile $p -UseBasicParsing; if ((Get-Content $p -TotalCount 1) -match '^\s*<') { Write-Error ('Download is HTML, not the script (check proxy / SSL inspection). Path: ' + $p); exit 1 }; & $p"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1' -OutFile $p -UseBasicParsing; $f=@(Get-Content $p -TotalCount 15 | Where-Object { $_.Trim() })[0]; if ($f -match '^\s*(<!DOCTYPE|<html\b|<head\b)') { Write-Error ('Download looks like HTML, not the script (check proxy / SSL inspection). Path: ' + $p); exit 1 }; & $p"
 ```
 
 **Already at a `PS>` prompt:**
@@ -23,7 +25,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP '
 ```powershell
 $p = Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'
 Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1' -OutFile $p -UseBasicParsing
-if ((Get-Content $p -TotalCount 1) -match '^\s*<') { throw "Got HTML instead of script. Open in Notepad: $p" }
+$f = @(Get-Content $p -TotalCount 15 | Where-Object { $_.Trim() })[0]
+if ($f -match '^\s*(<!DOCTYPE|<html\b|<head\b)') { throw "Got HTML instead of script. Open in Notepad: $p" }
 & $p
 ```
 
@@ -34,7 +37,7 @@ That message means the URL returned a web page (proxy, SSL inspection, or filter
 **From cmd.exe:**
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; Invoke-WebRequest -Uri 'https://cdn.jsdelivr.net/gh/monobrau/screenconnect-gpo-msi-finder@main/Find-ScreenConnectGPO.ps1' -OutFile $p -UseBasicParsing; if ((Get-Content $p -TotalCount 1) -match '^\s*<') { Write-Error ('Download is HTML, not the script. Path: ' + $p); exit 1 }; & $p"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; Invoke-WebRequest -Uri 'https://cdn.jsdelivr.net/gh/monobrau/screenconnect-gpo-msi-finder@main/Find-ScreenConnectGPO.ps1' -OutFile $p -UseBasicParsing; $f=@(Get-Content $p -TotalCount 15 | Where-Object { $_.Trim() })[0]; if ($f -match '^\s*(<!DOCTYPE|<html\b|<head\b)') { Write-Error ('Download looks like HTML, not the script. Path: ' + $p); exit 1 }; & $p"
 ```
 
 **Already at a `PS>` prompt:** use the same `-Uri` as above in `Invoke-WebRequest`. If both hosts return HTML, copy `Find-ScreenConnectGPO.ps1` from this repo over RDP/USB/internal share, or ask IT to allow unmodified HTTPS to `raw.githubusercontent.com` or `cdn.jsdelivr.net` for that use case.
@@ -60,7 +63,7 @@ Skip this in locked-down networks; use the download-then-run blocks above.
 Use **double-quoted** path assignment or `Join-Path` so `$env:TEMP` expands. (A line like `$s='$env:TEMP\...'` keeps `$env:TEMP` literal and makes `-OutFile` fail with “drive '$env' does not exist”.)
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1' -OutFile $s -UseBasicParsing; if ((Get-Content $s -TotalCount 1) -match '^\s*<') { Write-Error ('Download is HTML, not the script (check proxy / SSL inspection). Path: ' + $s); exit 1 }; & $s -DomainController 'DC01.corp.contoso.com' -Domain 'corp.contoso.com'"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1' -OutFile $s -UseBasicParsing; $f=@(Get-Content $s -TotalCount 15 | Where-Object { $_.Trim() })[0]; if ($f -match '^\s*(<!DOCTYPE|<html\b|<head\b)') { Write-Error ('Download looks like HTML, not the script (check proxy / SSL inspection). Path: ' + $s); exit 1 }; & $s -DomainController 'DC01.corp.contoso.com' -Domain 'corp.contoso.com'"
 ```
 
 If that fails the HTML check, use the same command but replace the `-Uri` value with `https://cdn.jsdelivr.net/gh/monobrau/screenconnect-gpo-msi-finder@main/Find-ScreenConnectGPO.ps1`.
@@ -72,8 +75,8 @@ If that fails the HTML check, use the same command but replace the `-Uri` value 
 **`irm ... | iex` errors about `&`, `redirect`, base64, or “string is missing the terminator”**  
 The URL response is **not** the script—it is usually **HTML** (GitHub’s page, a proxy block, or an SSL inspection portal). Use the **download then run** commands above.
 
-**The guard says “Download is HTML”**  
-Your network replaced the file with a web page. Try the **Fallback mirror (jsDelivr)** section above, or copy the script from the repo by another path; IT may need to stop SSL-bumping or allowlist `raw.githubusercontent.com` / `cdn.jsdelivr.net` for script text.
+**The guard says the download “looks like HTML”**  
+The first non-blank line matched a typical HTML document start. If you fixed an older README one-liner that treated any leading `<` as HTML, note that **this script starts with `<#`**—that is valid PowerShell, not a page. Use the current guards above. If the file in Notepad really is HTML, try **jsDelivr** or an internal copy; IT may need to allowlist `raw.githubusercontent.com` / `cdn.jsdelivr.net`.
 
 **“Could not find drive '$env'” on `-OutFile`**  
 The temp path was assigned inside **single quotes**. Use `Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'` or `"$env:TEMP\Find-ScreenConnectGPO.ps1"` (double quotes) when setting `$s`.
