@@ -27,6 +27,18 @@ if ((Get-Content $p -TotalCount 1) -match '^\s*<') { throw "Got HTML instead of 
 & $p
 ```
 
+### Fallback mirror (if the guard says the download is HTML)
+
+That message means the URL returned a web page (proxy, SSL inspection, or filter), not the script. Try the same one-liner with **jsDelivr** instead—same file, different host (sometimes allowed when `raw.githubusercontent.com` is not):
+
+**From cmd.exe:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; Invoke-WebRequest -Uri 'https://cdn.jsdelivr.net/gh/monobrau/screenconnect-gpo-msi-finder@main/Find-ScreenConnectGPO.ps1' -OutFile $p -UseBasicParsing; if ((Get-Content $p -TotalCount 1) -match '^\s*<') { Write-Error ('Download is HTML, not the script. Path: ' + $p); exit 1 }; & $p"
+```
+
+**Already at a `PS>` prompt:** use the same `-Uri` as above in `Invoke-WebRequest`. If both hosts return HTML, copy `Find-ScreenConnectGPO.ps1` from this repo over RDP/USB/internal share, or ask IT to allow unmodified HTTPS to `raw.githubusercontent.com` or `cdn.jsdelivr.net` for that use case.
+
 ### TLS 1.2 workaround (older hosts / “Could not create SSL/TLS secure channel”)
 
 Run this **once in the same session** before the download line, or prepend it inside the `-Command` string (after `$p=Join-Path …`):
@@ -51,12 +63,17 @@ Use **double-quoted** path assignment or `Join-Path` so `$env:TEMP` expands. (A 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/monobrau/screenconnect-gpo-msi-finder/main/Find-ScreenConnectGPO.ps1' -OutFile $s -UseBasicParsing; if ((Get-Content $s -TotalCount 1) -match '^\s*<') { Write-Error ('Download is HTML, not the script (check proxy / SSL inspection). Path: ' + $s); exit 1 }; & $s -DomainController 'DC01.corp.contoso.com' -Domain 'corp.contoso.com'"
 ```
 
+If that fails the HTML check, use the same command but replace the `-Uri` value with `https://cdn.jsdelivr.net/gh/monobrau/screenconnect-gpo-msi-finder@main/Find-ScreenConnectGPO.ps1`.
+
 ---
 
 ## Troubleshooting
 
 **`irm ... | iex` errors about `&`, `redirect`, base64, or “string is missing the terminator”**  
-The URL response is **not** the script—it is usually **HTML** (GitHub’s page, a proxy block, or an SSL inspection portal). Use the **download then run** commands above; if the guard says the file is HTML, copy the script from this repo by another channel or allow `raw.githubusercontent.com` to return plain text.
+The URL response is **not** the script—it is usually **HTML** (GitHub’s page, a proxy block, or an SSL inspection portal). Use the **download then run** commands above.
+
+**The guard says “Download is HTML”**  
+Your network replaced the file with a web page. Try the **Fallback mirror (jsDelivr)** section above, or copy the script from the repo by another path; IT may need to stop SSL-bumping or allowlist `raw.githubusercontent.com` / `cdn.jsdelivr.net` for script text.
 
 **“Could not find drive '$env'” on `-OutFile`**  
 The temp path was assigned inside **single quotes**. Use `Join-Path $env:TEMP 'Find-ScreenConnectGPO.ps1'` or `"$env:TEMP\Find-ScreenConnectGPO.ps1"` (double quotes) when setting `$s`.
